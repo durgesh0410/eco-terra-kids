@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Eco-Terra: The Little Planetary Architect</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            margin: 0;
+            padding: 0;
+        }
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #0b0f19;
+            font-family: system-ui, -apple-system, sans-serif;
+            color: #fff;
+        }
+        #game-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+        }
+        /* Top Status Bar */
+        .hud-bar {
+            position: absolute;
+            top: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 15px;
+            background: rgba(15, 23, 42, 0.8);
+            padding: 8px 18px;
+            border-radius: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(10px);
+            z-index: 10;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+        }
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+        /* Bottom Toolbar */
+        .toolbar {
+            position: absolute;
+            bottom: 25px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 12px;
+            background: rgba(15, 23, 42, 0.85);
+            padding: 10px 16px;
+            border-radius: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(12px);
+            z-index: 10;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+        }
+        .tool-btn {
+            width: 52px;
+            height: 52px;
+            border-radius: 16px;
+            border: none;
+            background: rgba(255, 255, 255, 0.08);
+            color: white;
+            font-size: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+        }
+        .tool-btn.active {
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+            transform: translateY(-4px);
+            box-shadow: 0 6px 20px rgba(59, 130, 246, 0.5);
+            border-color: rgba(255,255,255,0.4);
+        }
+        .tool-btn:active {
+            transform: scale(0.92);
+        }
+        /* Intro Overlay */
+        #intro-overlay {
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at center, #1e293b 0%, #0b0f19 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            padding: 20px;
+            text-align: center;
+            transition: opacity 0.5s ease;
+        }
+        #intro-overlay h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+            background: linear-gradient(to right, #60a5fa, #34d399);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        #intro-overlay p {
+            font-size: 14px;
+            color: #94a3b8;
+            max-width: 300px;
+            line-height: 1.5;
+            margin-bottom: 25px;
+        }
+        .play-btn {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            border: none;
+            padding: 14px 36px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 30px;
+            cursor: pointer;
+            box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4);
+            transition: transform 0.2s;
+        }
+        .play-btn:active {
+            transform: scale(0.95);
+        }
+    </style>
+</head>
+<body>
+
+<div id="intro-overlay">
+    <h1>Eco-Terra 🌍</h1>
+    <p>Bring the barren planet to life! Tap elements below and touch the planet to add water, plants, and vitality.</p>
+    <button class="play-btn" onclick="startGame()">Start Exploring ✨</button>
+</div>
+
+<div id="game-container">
+    <div class="hud-bar">
+        <div class="stat-item" style="color: #60a5fa;">💧 <span id="water-stat">0%</span></div>
+        <div class="stat-item" style="color: #34d399;">🌿 <span id="life-stat">0%</span></div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <div class="toolbar">
+        <button class="tool-btn active" onclick="setTool('water', this)" title="Water">💧</button>
+        <button class="tool-btn" onclick="setTool('seed', this)" title="Seeds">🌱</button>
+        <button class="tool-btn" onclick="setTool('cloud', this)" title="Rain Cloud">🌧️</button>
+        <button class="tool-btn" onclick="setTool('sun', this)" title="Sun Energy">☀️</button>
+        <button class="tool-btn" onclick="setTool('magic', this)" title="Comet Spark">✨</button>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    let width, height, planetRadius, planetX, planetY;
+    let currentTool = 'water';
+    let waterLevel = 0;
+    let lifeLevel = 0;
+    let particles = [];
+    let surfaceElements = [];
+    let audioCtx = null;
+
+    function resize() {
+        width = canvas.width = window.innerWidth;
+        height = canvas.height = window.innerHeight;
+        planetX = width / 2;
+        planetY = height / 2;
+        planetRadius = Math.min(width, height) * 0.28;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    function startGame() {
+        document.getElementById('intro-overlay').style.opacity = '0';
+        setTimeout(() => {
+            document.getElementById('intro-overlay').style.display = 'none';
+        }, 500);
+        initAudio();
+    }
+
+    function initAudio() {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+    }
+
+    function playSound(type) {
+        if (!audioCtx) return;
+        try {
+            let osc = audioCtx.createOscillator();
+            let gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            let now = audioCtx.currentTime;
+
+            if (type === 'water') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(300, now);
+                osc.frequency.exponentialRampToValueAtTime(600, now + 0.15);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+                osc.start(now);
+                osc.stop(now + 0.15);
+            } else if (type === 'seed') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(400, now);
+                osc.frequency.exponentialRampToValueAtTime(800, now + 0.2);
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+                osc.start(now);
+                osc.stop(now + 0.2);
+            } else if (type === 'magic') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(500, now);
+                osc.frequency.exponentialRampToValueAtTime(1200, now + 0.3);
+                gain.gain.setValueAtTime(0.25, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+                osc.start(now);
+                osc.stop(now + 0.3);
+            }
+        } catch(e) {}
+    }
+
+    function setTool(tool, btn) {
+        currentTool = tool;
+        document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        playSound('seed');
+    }
+
+    // Input Handling
+    function handleInteraction(clientX, clientY) {
+        const dx = clientX - planetX;
+        const dy = clientY - planetY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        // Check if interaction is near or on the planet surface
+        if (dist < planetRadius * 1.4) {
+            const angle = Math.atan2(dy, dx);
+            
+            if (currentTool === 'water') {
+                waterLevel = Math.min(100, waterLevel + 1.5);
+                playSound('water');
+                spawnParticles(clientX, clientY, '#60a5fa', 12);
+            } else if (currentTool === 'seed') {
+                lifeLevel = Math.min(100, lifeLevel + 2);
+                surfaceElements.push({ angle, type: 'tree', size: Math.random() * 8 + 6, growth: 0 });
+                playSound('seed');
+                spawnParticles(clientX, clientY, '#34d399', 10);
+            } else if (currentTool === 'cloud') {
+                waterLevel = Math.min(100, waterLevel + 1);
+                surfaceElements.push({ angle, type: 'rock', size: Math.random() * 6 + 4 });
+                playSound('water');
+                spawnParticles(clientX, clientY, '#93c5fd', 15);
+            } else if (currentTool === 'sun') {
+                lifeLevel = Math.min(100, lifeLevel + 1.5);
+                playSound('magic');
+                spawnParticles(clientX, clientY, '#fbbf24', 12);
+            } else if (currentTool === 'magic') {
+                waterLevel = Math.min(100, waterLevel + 2);
+                lifeLevel = Math.min(100, lifeLevel + 2);
+                playSound('magic');
+                spawnParticles(clientX, clientY, '#f472b6', 20);
+            }
+
+            document.getElementById('water-stat').innerText = Math.floor(waterLevel) + '%';
+            document.getElementById('life-stat').innerText = Math.floor(lifeLevel) + '%';
+        }
+    }
+
+    window.addEventListener('pointerdown', (e) => {
+        if(e.clientY < height - 90) {
+            handleInteraction(e.clientX, e.clientY);
+        }
+    });
+
+    function spawnParticles(x, y, color, count) {
+        for (let i = 0; i < count; i++) {
+            particles.push({
+                x, y,
+                vx: (Math.random() - 0.5) * 6,
+                vy: (Math.random() - 0.5) * 6,
+                alpha: 1,
+                color,
+                size: Math.random() * 4 + 2
+            });
+        }
+    }
+
+    // Main Render Loop
+    let rotationAngle = 0;
+
+    function animate() {
+        ctx.clearRect(0, 0, width, height);
+
+        rotationAngle += 0.002;
+
+        // Draw Planet Body (Changes color dynamically based on water & life)
+        ctx.save();
+        ctx.translate(planetX, planetY);
+        ctx.rotate(rotationAngle);
+
+        // Outer Atmosphere Glow
+        let glowRadius = planetRadius + 15 + Math.sin(Date.now() * 0.003) * 5;
+        let gradient = ctx.createRadialGradient(0, 0, planetRadius * 0.8, 0, 0, glowRadius);
+        let ecoColor = waterLevel > 50 ? '#34d399' : '#60a5fa';
+        gradient.addColorStop(0, 'rgba(59, 130, 246, 0.3)');
+        gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(0, 0, glowRadius, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Base Planet Core (Barren Red/Brown shifting to Vibrant Green/Blue)
+        let baseRed = Math.max(40, 180 - waterLevel * 1.2);
+        let baseGreen = Math.max(40, waterLevel * 1.5 + lifeLevel * 0.8);
+        let baseBlue = Math.max(50, waterLevel * 2);
+        
+        ctx.fillStyle = `rgb(${baseRed}, ${baseGreen}, ${baseBlue})`;
+        ctx.beginPath();
+        ctx.arc(0, 0, planetRadius, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Draw Surface Features (Trees/Rocks)
+        surfaceElements.forEach(el => {
+            ctx.save();
+            ctx.rotate(el.angle);
+            ctx.translate(planetRadius, 0);
+            if (el.type === 'tree') {
+                ctx.fillStyle = '#10b981';
+                ctx.beginPath();
+                ctx.arc(0, 0, 8, 0, Math.PI * 2);
+                ctx.fill();
+            } else {
+                ctx.fillStyle = '#64748b';
+                ctx.fillRect(-3, -3, 6, 6);
+            }
+            ctx.restore();
+        });
+
+        ctx.restore();
+
+        // Update & Draw Particles
+        for (let i = particles.length - 1; i >= 0; i--) {
+            let p = particles[i];
+            p.x += p.vx;
+            p.y += p.vy;
+            p.alpha -= 0.02;
+
+            if (p.alpha <= 0) {
+                particles.splice(i, 1);
+                continue;
+            }
+
+            ctx.save();
+            ctx.globalAlpha = p.alpha;
+            ctx.fillStyle = p.color;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+
+        requestAnimationFrame(animate);
+    }
+
+    animate();
+</script>
+
+</body>
+</html>
